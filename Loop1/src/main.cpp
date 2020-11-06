@@ -2,21 +2,40 @@
 #include <iomanip>
 #include <fstream>
 #include <mpi.h>
+#include <cassert>
 #include <unistd.h>
 #include <cmath>
 
 void calc(double* arr, uint32_t ySize, uint32_t xSize, int rank, int size)
 {
-  if (rank == 0 && size > 0)
-  {
-    for (uint32_t y = 0; y < ySize; y++)
-    {
-      for (uint32_t x = 0; x < xSize; x++)
-      {
-        arr[y*xSize + x] = sin(0.00001*arr[y*xSize + x]);
-      }
-    }
-  }
+  uint32_t cells_per_process = (int)((ySize * xSize) / (double)size);
+  MPI_Bcast(&cells_per_process, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+
+  // I know that root process makes extra copy, but who cares
+  double* mycells = (double*)calloc(cells_per_process, sizeof(double));
+  assert(mycells);
+#ifdef DEBUG_PRINTS
+  if (rank == 0)
+    printf("cells_per_process = %u\n", cells_per_process);
+#endif
+
+  MPI_Scatter(arr,     cells_per_process, MPI_DOUBLE,
+              mycells, cells_per_process, MPI_DOUBLE,
+              0, MPI_COMM_WORLD);
+
+  for (uint32_t i = 0; i < cells_per_process; i++)
+    mycells[i] = sin(0.00001*mycells[i]);
+
+  MPI_Gather(mycells, cells_per_process, MPI_DOUBLE,
+             arr,     cells_per_process, MPI_DOUBLE,
+             0, MPI_COMM_WORLD);
+
+  free(mycells);
+
+  // Compute remainder
+  if (rank == 0)
+    for (uint32_t i = cells_per_process*size; i < ySize * xSize; i++)
+      arr[i] = sin(0.00001*arr[i]);
 }
 
 int main(int argc, char** argv)
