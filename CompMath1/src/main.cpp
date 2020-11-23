@@ -100,9 +100,8 @@ int main(int argc, char** argv)
 
     for (uint32_t i = 0; i < traceSize; i++)
     {
-      output << " " << trace[i];
+      output << std::fixed << std::setprecision(13) << trace[i] << std::endl;
     }
-    output << std::endl;
     output.close();
     delete trace;
   }
